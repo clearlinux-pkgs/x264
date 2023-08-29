@@ -5,7 +5,7 @@
 #
 Name     : x264
 Version  : master
-Release  : 2
+Release  : 3
 URL      : https://code.videolan.org/videolan/x264/-/archive/master/x264-master.tar.bz2
 Source0  : https://code.videolan.org/videolan/x264/-/archive/master/x264-master.tar.bz2
 Summary  : No detailed summary available
@@ -64,13 +64,19 @@ license components for the x264 package.
 %prep
 %setup -q -n x264-master
 cd %{_builddir}/x264-master
+pushd ..
+cp -a x264-master buildavx2
+popd
+pushd ..
+cp -a x264-master buildavx512
+popd
 
 %build
 export http_proxy=http://127.0.0.1:9/
 export https_proxy=http://127.0.0.1:9/
 export no_proxy=localhost,127.0.0.1,0.0.0.0
 export LANG=C.UTF-8
-export SOURCE_DATE_EPOCH=1693332795
+export SOURCE_DATE_EPOCH=1693340083
 export GCC_IGNORE_WERROR=1
 export AR=gcc-ar
 export RANLIB=gcc-ranlib
@@ -82,18 +88,48 @@ export CXXFLAGS="$CXXFLAGS -O3 -fdebug-types-section -femit-struct-debug-baseonl
 %configure --disable-static --enable-shared
 make  %{?_smp_mflags}
 
+unset PKG_CONFIG_PATH
+pushd ../buildavx2/
+export CFLAGS="$CFLAGS -m64 -march=x86-64-v3 -Wl,-z,x86-64-v3"
+export CXXFLAGS="$CXXFLAGS -m64 -march=x86-64-v3 -Wl,-z,x86-64-v3"
+export FFLAGS="$FFLAGS -m64 -march=x86-64-v3 -Wl,-z,x86-64-v3"
+export FCFLAGS="$FCFLAGS -m64 -march=x86-64-v3"
+export LDFLAGS="$LDFLAGS -m64 -march=x86-64-v3"
+%configure --disable-static --enable-shared
+make  %{?_smp_mflags}
+popd
+unset PKG_CONFIG_PATH
+pushd ../buildavx512/
+export CFLAGS="$CFLAGS -m64 -march=x86-64-v4 -mprefer-vector-width=512 -Wl,-z,x86-64-v4 "
+export CXXFLAGS="$CXXFLAGS -m64 -march=x86-64-v4 -mprefer-vector-width=512 -Wl,-z,x86-64-v4 "
+export FFLAGS="$FFLAGS -m64 -march=x86-64-v4 -mprefer-vector-width=512"
+export FCFLAGS="$FCFLAGS -m64 -march=x86-64-v4 -mprefer-vector-width=512"
+export LDFLAGS="$LDFLAGS -m64 -march=x86-64-v4"
+%configure --disable-static --enable-shared
+make  %{?_smp_mflags}
+popd
 %install
-export SOURCE_DATE_EPOCH=1693332795
+export SOURCE_DATE_EPOCH=1693340083
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/share/package-licenses/x264
 cp %{_builddir}/x264-%{version}/COPYING %{buildroot}/usr/share/package-licenses/x264/dfac199a7539a404407098a2541b9482279f690d || :
+pushd ../buildavx2/
+%make_install_v3
+popd
+pushd ../buildavx512/
+%make_install_v4
+popd
 %make_install
+/usr/bin/elf-move.py avx2 %{buildroot}-v3 %{buildroot} %{buildroot}/usr/share/clear/filemap/filemap-%{name}
+/usr/bin/elf-move.py avx512 %{buildroot}-v4 %{buildroot} %{buildroot}/usr/share/clear/filemap/filemap-%{name}
 
 %files
 %defattr(-,root,root,-)
 
 %files bin
 %defattr(-,root,root,-)
+/V3/usr/bin/x264
+/V4/usr/bin/x264
 /usr/bin/x264
 
 %files dev
@@ -105,6 +141,8 @@ cp %{_builddir}/x264-%{version}/COPYING %{buildroot}/usr/share/package-licenses/
 
 %files lib
 %defattr(-,root,root,-)
+/V3/usr/lib64/libx264.so.164
+/V4/usr/lib64/libx264.so.164
 /usr/lib64/libx264.so.164
 
 %files license
